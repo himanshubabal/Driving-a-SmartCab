@@ -26,7 +26,7 @@ class LearningAgent(Agent):
         self.createQ()
 
 
-    def reset(self, destination=None, testing=True):
+    def reset(self, destination=None, testing=False):
         """ The reset function is called at the beginning of each trial.
             'testing' is set to True if testing trials are being used
             once training trials have completed. """
@@ -168,7 +168,7 @@ class LearningAgent(Agent):
 
         # Q learning equation
         # self.Q[state_key][action] = (1 - learning_rate) * self.Q[state_key][action] + learning_rate * (reward + gamma * max_Q)
-        self.Q[state_key][action] = (1 - learning_rate) * self.Q[state_key][action] + learning_rate * (reward + 0 * max_Q)
+        self.Q[state_key][action] = (1 - learning_rate) * self.Q[state_key][action] + learning_rate * (reward + 0.5 * max_Q)
 
         print('Q[state_key] : ', self.Q[state_key])
         print('Q[state_key][action] : ', self.Q[state_key][action])
