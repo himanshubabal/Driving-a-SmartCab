@@ -62,6 +62,8 @@ class LearningAgent(Agent):
             self.epsilon = np.power(self.a, self.step)
             self.step = self.step + 1
 
+            self.alpha += 0.01 
+
         # Rating -> A+, A+ 
         # -----------------------------------------------
         ## 3rd epsilon decay -> epsilon = 1 / (t ^ 2)
@@ -88,6 +90,7 @@ class LearningAgent(Agent):
 
         # self.epsilon = np.power(self.a, self.step)
         # self.step = self.step + 1
+        # self.alpha += 0.01
 
 
         # Update additional class parameters as needed
@@ -180,7 +183,6 @@ class LearningAgent(Agent):
         #   Use only the learning rate 'alpha' (do not use the discount factor 'gamma')
         
         learning_rate = self.alpha
-        # gamma = 0.5
 
         # transform state to the Q dictionary key
         state_key = (state['light'], state['oncoming'], state['direction'])
@@ -189,8 +191,18 @@ class LearningAgent(Agent):
         direction = self.planner.next_waypoint()
 
         # Q learning equation
-        # self.Q[state_key][action] = (1 - learning_rate) * self.Q[state_key][action] + learning_rate * (reward + gamma * max_Q)
         self.Q[state_key][action] = (1 - learning_rate) * self.Q[state_key][action] + learning_rate * reward
+
+
+        #------------- Uncomment to use Discount Factor Gamma  ------------------------
+        # gamma = 0.5
+        # next_state_key = (inputs['light'], inputs['oncoming'], state['direction'])
+        # max_Q = max(self.Q[next_state_key].values())
+        # self.Q[state_key][action] = (1 - learning_rate) * self.Q[state_key][action] + learning_rate * (reward + gamma * max_Q)
+        #------------- Uncomment to use Discount Factor Gamma  ------------------------
+
+        ###### Using Gamma made results worse in this case
+        ###### Rating came down from A+, A+  to  A+, C
 
         return
 
@@ -248,7 +260,7 @@ def run():
         Q_dict = load_dict()
     print(len(Q_dict))
 
-    l = LearningAgent(env, learning=isLearning, alpha=0.6, epsilon=0.30, dictn=Q_dict)
+    l = LearningAgent(env, learning=isLearning, alpha=0.6, epsilon=0.20, dictn=Q_dict)
     agent = env.create_agent_new(l)#, learning=True, alpha=0.5, epsilon=0.015)
     
     ##############
@@ -271,7 +283,7 @@ def run():
     # Flags:
     #   tolerance  - epsilon tolerance before beginning testing, default is 0.05 
     #   n_test     - discrete number of testing trials to perform, default is 0
-    sim.run(n_test=25, tolerance=0.01)
+    sim.run(n_test=50, tolerance=0.01)
    
     new_dict = LearningAgent.printDict(l) 
     
