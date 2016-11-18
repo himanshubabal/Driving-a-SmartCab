@@ -4,23 +4,25 @@ from environment import Agent, Environment
 from planner import RoutePlanner
 from simulator import Simulator
 import numpy as np
+import pickle
+import os.path
 
 class LearningAgent(Agent):
     """ An agent that learns to drive in the Smartcab world.
-        This is the object you will be modifying. """ 
-    # step = 0
-    # a = random.random() # Random no from [0.0,1) for the decaying func   epsilon = exp ^ (- a * t)  where t = step    
+        This is the object you will be modifying. """
 
-    def __init__(self, env, learning=False, epsilon=1.0, alpha=0.5):
+    # def __init__(self, env, learning=False, epsilon=1.0, alpha=0.5):
+    def __init__(self, env, learning=False, epsilon=1.0, alpha=0.5, dictn={}):
         super(LearningAgent, self).__init__(env)     # Set the agent in the evironment 
         self.planner = RoutePlanner(self.env, self)  # Create a route planner
         self.valid_actions = self.env.valid_actions  # The set of valid actions
 
+        print(learning, epsilon, alpha, dictn)
         # Set parameters of the learning agent
         self.learning = learning # Whether the agent is expected to learn
 
         # Create a Q-table which will be a dictionary of tuples
-        self.Q = dict() 
+        self.Q = dictn
 
         self.epsilon = epsilon   # Random exploration factor
         self.alpha = alpha       # Learning factor
@@ -31,7 +33,6 @@ class LearningAgent(Agent):
         self.step = 1
         self.a = random.random() # Random no from [0.0,1) for the decaying func   epsilon = exp ^ (- a * t)  where t = step
 
-
     def reset(self, destination=None, testing=False):
         """ The reset function is called at the beginning of each trial.
             'testing' is set to True if testing trials are being used
@@ -40,11 +41,54 @@ class LearningAgent(Agent):
         self.planner.route_to(destination)
         # Update epsilon using a decay function of your choice
         
+        # For Non-Optimised Phase
+        # self.epsilon = self.epsilon - 0.05 
 
-        # self.epsilon = self.epsilon - 0.001
-        # self.step = 1
-        # self.a = random.random()
-        self.step = self.step + 1
+        ######   Optimized   ######
+        # -----------------------------------------------
+        ## 1st epsilon dacay -> epsilon = exp(-at)
+
+        # if random.random() < self.epsilon:
+
+        #     self.epsilon = np.exp(-(self.a * self.step))
+        #     self.step = self.step + 1
+
+        # Rating -> A+, A
+        # -----------------------------------------------
+        ## 2nd epsilon decay -> epsilon = a ^ t
+
+        if random.random() < self.epsilon:
+
+            self.epsilon = np.power(self.a, self.step)
+            self.step = self.step + 1
+
+        # Rating -> A+, A+ 
+        # -----------------------------------------------
+        ## 3rd epsilon decay -> epsilon = 1 / (t ^ 2)
+
+        # if random.random() < self.epsilon:
+
+        #     self.epsilon = 1.0 / np.power(self.step, 2)
+        #     self.step = self.step + 1
+
+        # Takes very long time
+        # Rating -> A+, A 
+        # -----------------------------------------------
+        ## 4th epsilon decay -> epsilon = cos(at)
+
+        # if random.random() < self.epsilon:
+
+        #     self.epsilon = np.cos(self.a * self.step)
+        #     self.step = self.step + 1
+
+        # Rating -> A+, B
+        # -----------------------------------------------
+
+        #############     Winner -> 2nd      ##############
+
+        # self.epsilon = np.power(self.a, self.step)
+        # self.step = self.step + 1
+
 
         # Update additional class parameters as needed
         # If 'testing' is True, set epsilon and alpha to 0
@@ -68,30 +112,19 @@ class LearningAgent(Agent):
         # state = (waypoint, inputs['light'], inputs['oncoming'])
 
         dict_state = {'light' : inputs['light'], 'oncoming' : inputs['oncoming'], 'direction' : waypoint}
-        # dict_state_deadline = {'direction' : waypoint, 'light' : inputs['light'], 'oncoming' : inputs['oncoming'], 'deadline' : deadline}
-
-        print (dict_state)
-        print ('deadline : ', deadline)
 
         return dict_state
-
 
     def get_maxQ(self, state):
         """ The get_maxQ function is called when the agent is asked to find the
             maximum Q-value of all actions based on the 'state' the smartcab is in. """
         # Calculate the maximum Q-value of all actions for a given state
-        action_dict = self.Q[state]
+        state_key = (self.state['light'], self.state['oncoming'], self.state['direction'])
 
-        max_key = max(action_dict, key=action_dict.get)
-        max_value = action_dict[max_key]
+        Q_item = self.Q[state_key]
+        max_Q = max(Q_item.values()) # find the max Q value
 
-        maxQ = max_key
-
-        print('max_action : ' + str(max_key))
-        print('max_value : ' + str(max_value))
-
-        return maxQ 
-
+        return max_Q 
 
     def createQ(self):
         """ The createQ function is called when a state is generated by the agent. """
@@ -99,22 +132,19 @@ class LearningAgent(Agent):
         # If it is not, create a new dictionary for that state
         #   Then, for each action available, set the initial Q-value to 0.0
 
-        # dict_state = {'light' : inputs['light'], 'oncoming' : inputs['oncoming'], 'direction' : waypoint}
+        if len(self.Q) == 0 :
+            print('Creating a new Empty Dict')
+            valid_actions = self.valid_actions
 
-        self.Q = {}
-
-        valid_actions = self.valid_actions
-
-        for light in ['green','red'] :
-            for oncoming in valid_actions :
-                for direction in valid_actions:
-                    self.Q[(light, oncoming, direction)] = {'forward':0.0, 'left':0.0, 'right':0.0, None:0.0}
-
-        print self.Q
-        print len(self.Q)
+            for light in ['green','red'] :
+                for oncoming in valid_actions :
+                    for direction in valid_actions:
+                        self.Q[(light, oncoming, direction)] = {'forward':0.0, 'left':0.0, 'right':0.0, None:0.0}
 
         return
 
+    def printDict(self):
+        return self.Q
 
     def choose_action(self, state):
         """ The choose_action function is called when the agent is asked to choose
@@ -122,58 +152,25 @@ class LearningAgent(Agent):
         # Set the agent state and default action
         self.state = state
         self.next_waypoint = self.planner.next_waypoint()
-        ###########
         # When not learning, choose a random action
         # When learning, choose a random action with 'epsilon' probability
         #   Otherwise, choose an action with the highest Q-value for the current state
 
-        if random.random() < self.epsilon:
-
-            # self.epsilon = 1.0/(step * step) 
-            # self.step += 1
-
-            if self.epsilon <= 0.001 :
-                self.epsilon = 0.001
-            else :
-
-            # self.epsilon -= 0.001
-
-            # self.epsilon = np.exp(-(self.a * self.step))
-                self.epsilon = 1.00 / np.square(self.step)
-                
-                self.alpha += 0.0025 
-
-            return random.choice(self.valid_actions)
-
-        # if self.epsilon <= 0.001 :
-        #     self.epsilon = 0.001
-        # else :
-        #     self.epsilon = 1.00 / np.square(self.step)    
-        #     self.alpha += 0.0025 
-
-
         state_key = (self.state['light'], self.state['oncoming'], self.state['direction'])
+        Q_item = self.Q[state_key]
+
+        max_Q = self.get_maxQ(state)
 
         actionss = []
-        Q_item = self.Q[state_key]
-        max_Q = max(Q_item.values()) # find the max Q value
-
-        print('max_Q - choose action : ', max_Q)
-        
         for key, value in Q_item.iteritems():
             if value == max_Q:
                 actionss.append(key)
         action = random.choice(actionss)
 
-        print ('actionss : ', actionss)
-        print('action - choose action : ', action)
-
-
         ### For non-learning phase
         # action = random.choice(self.valid_actions)
 
         return action
-
 
     def learn(self, state, action, reward):
         """ The learn function is called after the agent completes an action and
@@ -182,32 +179,20 @@ class LearningAgent(Agent):
         # When learning, implement the value iteration update rule
         #   Use only the learning rate 'alpha' (do not use the discount factor 'gamma')
         
-
         learning_rate = self.alpha
-        gamma = 0.5
+        # gamma = 0.5
+
         # transform state to the Q dictionary key
         state_key = (state['light'], state['oncoming'], state['direction'])
 
         inputs = self.env.sense(self)
         direction = self.planner.next_waypoint()
-        next_state_key = (inputs['light'], inputs['oncoming'], state['direction'])
-
-        max_Q = max(self.Q[next_state_key].values())
-
-        print('step : ', self.step, '    a : ', self.a, '   epsilon : ', self.epsilon)
-        print('max_Q - learn : ', max_Q)
-        print('Q[state_key] : ', self.Q[state_key])
-        print('Q[state_key][action] : ', self.Q[state_key][action])
 
         # Q learning equation
         # self.Q[state_key][action] = (1 - learning_rate) * self.Q[state_key][action] + learning_rate * (reward + gamma * max_Q)
-        self.Q[state_key][action] = (1 - learning_rate) * self.Q[state_key][action] + learning_rate * (reward + 0.5 * max_Q)
-
-        print('Q[state_key] : ', self.Q[state_key])
-        print('Q[state_key][action] : ', self.Q[state_key][action])
+        self.Q[state_key][action] = (1 - learning_rate) * self.Q[state_key][action] + learning_rate * reward
 
         return
-
 
     def update(self):
         """ The update function is called when a time step is completed in the 
@@ -225,9 +210,23 @@ class LearningAgent(Agent):
         
 
 def run():
+    isOptimized = True
+    isLearning = True
+    
+    dict_name = 'Q_learned_dict'
+    dict_name_pikle = 'Q_learned_dict.pkl'
+
+    def load_dict():
+        with open(dict_name + '.pkl', 'rb') as f:
+            return pickle.load(f)
+
+    def save_dict(obj):
+        with open( dict_name + '.pkl', 'wb') as f:
+            pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+
     """ Driving function for running the simulation. 
         Press ESC to close the simulation, or [SPACE] to pause the simulation. """
-
+    
     ##############
     # Create the environment
     # Flags:
@@ -242,7 +241,15 @@ def run():
     #    * learning   - set to True to force the driving agent to use Q-learning
     #    * epsilon - continuous value for the exploration factor, default is 1
     #    * alpha   - continuous value for the learning rate, default is 0.5
-    agent = env.create_agent(LearningAgent, learning=True, alpha=0.8, epsilon=0.15)
+    Q_dict = {}
+
+    if (isLearning and os.path.isfile(dict_name_pikle) and isOptimized) :
+        print('inside_if_condition')
+        Q_dict = load_dict()
+    print(len(Q_dict))
+
+    l = LearningAgent(env, learning=isLearning, alpha=0.6, epsilon=0.30, dictn=Q_dict)
+    agent = env.create_agent_new(l)#, learning=True, alpha=0.5, epsilon=0.015)
     
     ##############
     # Follow the driving agent
@@ -257,15 +264,20 @@ def run():
     #   display      - set to False to disable the GUI if PyGame is enabled
     #   log_metrics  - set to True to log trial and simulation results to /logs
     #   optimized    - set to True to change the default log file name
-    sim = Simulator(env, update_delay=0.01, log_metrics=True, optimized=True, display=False)
+    sim = Simulator(env, update_delay=0.01, log_metrics=True, optimized=isOptimized, display=False)
     
     ##############
     # Run the simulator
     # Flags:
     #   tolerance  - epsilon tolerance before beginning testing, default is 0.05 
     #   n_test     - discrete number of testing trials to perform, default is 0
-    sim.run(n_test=50, tolerance=0.001)
-
+    sim.run(n_test=25, tolerance=0.01)
+   
+    new_dict = LearningAgent.printDict(l) 
+    
+    if (isLearning and (not isOptimized)) :
+        save_dict(new_dict)
+        print('Directory Saved')
 
 if __name__ == '__main__':
     run()

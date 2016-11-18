@@ -88,6 +88,14 @@ class Environment(object):
             'success': 0  # whether the agent reached the destination in time
         }
 
+    def create_agent_new(self, agent):#_class, *args, **kwargs):
+        """ When called, create_agent creates an agent in the environment. """
+
+        # agent = agent_class(self, *args, **kwargs)
+        self.agent_states[agent] = {'location': random.choice(self.intersections.keys()), 'heading': (0, 1)}
+        return agent
+
+
     def create_agent(self, agent_class, *args, **kwargs):
         """ When called, create_agent creates an agent in the environment. """
 
